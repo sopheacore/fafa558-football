@@ -129,7 +129,7 @@ players.forEach(p=>{
         setTimeout(()=>{
           resultImg.src = './assets/popup-win-2usd.webp';
           actionBtnCt.innerHTML = `
-            <a id="claim-btn" href="https://t.me/fafa558kh_bot?start=LD1" target="_blank" rel="noopener">
+            <a id="claim-btn" href="https://t.me/FAFA558khwin" target="_blank" rel="noopener">
               <img src="./assets/claim-button.gif" alt="Claim">
             </a>`;
           popup.classList.add('show');
