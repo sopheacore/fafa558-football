@@ -10,7 +10,7 @@ html,body{ margin:0; height:100%; background:#000; display:grid; place-items:cen
   z-index:0;
 }
 
-/* stage */
+/* stage (frame) */
 .stage{
   position:relative; width:min(100vw,calc(100dvh*9/16)); aspect-ratio:9/16;
   overflow:hidden; z-index:1;
@@ -28,20 +28,23 @@ html,body{ margin:0; height:100%; background:#000; display:grid; place-items:cen
 /* title */
 .title{ position:absolute; top:19%; left:74%; transform:translateX(-50%); width:min(37%,420px); }
 
-/* SLOT wrappers keep the positions stable; sprites animate inside */
-.players{ position:absolute; inset:0; z-index:2; }
-.slot{ position:absolute; width:clamp(150px,36%,290px); aspect-ratio:1/1; }
-.slot.ronaldo{ top:28%; left:8%; }
-.slot.messi  { top:28%; right:8%; }
+/* players layout */
+.players{ position:absolute; inset:0; z-index:2; overflow:visible; }
+.slot{
+  position:absolute; width:clamp(180px,36%,290px); aspect-ratio:1/1;
+  overflow:visible; /* allow sprite to grow outside slot */
+}
+.slot.ronaldo{ top:28%; left:5%; }
+.slot.messi  { top:28%; right:5%; }
 .slot.haaland{ top:48%; left:31%; }
-.slot.neymar { bottom:13%; left:9%; }
-.slot.mbappe { bottom:13%; right:9%; }
+.slot.neymar { bottom:10%; left:4%; }
+.slot.mbappe { bottom:10%; right:4%; }
 
 /* sprite button */
 .player{
   position:absolute; inset:0; border:0;
   background: center bottom/contain no-repeat;
-  cursor:pointer; pointer-events:none;
+  cursor:pointer; pointer-events:none; /* enabled by JS on start */
   transition:filter .28s ease;
   filter: drop-shadow(0 10px 28px rgba(0,0,0,.45));
   background-color:transparent;
@@ -96,4 +99,9 @@ html,body{ margin:0; height:100%; background:#000; display:grid; place-items:cen
   .slot.ronaldo,.slot.messi{ top:30%; }
   .slot.haaland{ top:49%; left:30%; }
   .slot.neymar,.slot.mbappe{ bottom:10%; }
+}
+
+/* respect reduced motion */
+@media (prefers-reduced-motion: reduce){
+  .player.zoom, .player.spin3d, .player.impact { animation: none !important; }
 }
