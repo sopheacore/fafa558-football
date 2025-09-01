@@ -105,3 +105,12 @@ html,body{ margin:0; height:100%; background:#000; display:grid; place-items:cen
 @media (prefers-reduced-motion: reduce){
   .player.zoom, .player.spin3d, .player.impact { animation: none !important; }
 }
+/* Faster taps on mobile and no grey highlight */
+.player { 
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Make sure overlay eats taps so nothing underneath fires */
+.popup { pointer-events: none; }
+.popup.show { pointer-events: auto; }

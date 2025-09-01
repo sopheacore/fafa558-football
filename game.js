@@ -19,7 +19,7 @@ function makePool(el, size=2){
   const src = el.currentSrc || el.src;
   const items = Array.from({length:size}, ()=> {
     const a = new Audio(src);
-    a.preload = 'none'; // don't fetch until first play
+    a.preload = 'none';
     return a;
   });
   let i = 0;
@@ -81,13 +81,14 @@ function trackPurchase(value = 2.00, currency = 'USD') {
 
 // ===== Per-pixel hit testing using the same GIF as the sprite =====
 const players = document.querySelectorAll('.player');
-const alphaMap = new Map(); // el -> { canvas, ctx, w, h, img }
+const alphaMap = new Map(); // el -> { canvas, ctx, w, h }
 
 function prepareAlpha(el){
   const src = el.dataset.img;
   if (!src) return;
   const img = new Image();
-  img.crossOrigin = 'anonymous'; // safe if same-origin; harmless otherwise
+  // If served same-origin, fine. If cross-origin, CORS must allow canvas reads.
+  img.crossOrigin = 'anonymous';
   img.src = src;
   img.onload = ()=>{ el._alphaImg = img; renderAlpha(el); };
   img.onerror = ()=>{ log('alpha image failed', src); };
@@ -103,7 +104,7 @@ function renderAlpha(el){
   cvs.width = w; cvs.height = h;
   const ctx = cvs.getContext('2d');
 
-  // Match CSS background-size: contain; background-position: center bottom;
+  // Match CSS background-size: contain; background-position: center bottom
   const sx = w / img.naturalWidth;
   const sy = h / img.naturalHeight;
   const s  = Math.min(sx, sy);
@@ -113,32 +114,45 @@ function renderAlpha(el){
   const dy = h - dh;                    // bottom aligned Y
 
   ctx.clearRect(0,0,w,h);
-  ctx.drawImage(img, dx, dy, dw, dh);
-  alphaMap.set(el, { canvas: cvs, ctx, w, h });
+  try {
+    ctx.drawImage(img, dx, dy, dw, dh);
+    alphaMap.set(el, { canvas: cvs, ctx, w, h, dx, dy, dw, dh });
+  } catch (e) {
+    // Cross-origin without CORS -> canvas tainted; disable pixel test (fallback to rect)
+    log('canvas tainted; falling back to rectangular hit', e);
+    alphaMap.delete(el);
+  }
 }
 
 function isPixelHit(el, clientX, clientY){
   const data = alphaMap.get(el);
-  if (!data){ return true; } // if not ready, allow hit (fallback)
+  if (!data){ return true; } // fallback when alpha map not ready
   const rect = el.getBoundingClientRect();
   const x = Math.floor(clientX - rect.left);
   const y = Math.floor(clientY - rect.top);
   if (x < 0 || y < 0 || x >= data.w || y >= data.h) return false;
-  const a = data.ctx.getImageData(x, y, 1, 1).data[3];
-  return a > 10; // only count non-transparent pixels
+  let a = 0;
+  try {
+    a = data.ctx.getImageData(x, y, 1, 1).data[3];
+  } catch (e) {
+    // Shouldn't happen unless tainted later; fallback to rect
+    return true;
+  }
+  return a > 10; // only non-transparent pixels count
 }
 
-// Rebuild alpha maps on resize (keeps alignment with responsive layout)
+// Keep alpha maps aligned on resize
 let resizeT;
 window.addEventListener('resize', ()=>{
   clearTimeout(resizeT);
   resizeT = setTimeout(()=> players.forEach(renderAlpha), 120);
 });
 
-// ===== Game state (strict 2nd-click = win) =====
-let round = 1;       // 1 = lose, 2 = win
-let isBusy = false;  // lock during round
+// ===== Game state (strict 2nd-click = win, mobile-safe) =====
+let round = 1;         // 1 = lose on first click, 2 = win on second click
+let phase = 'ready';   // 'ready' | 'spinning' | 'popup'
 let popupTimer = null;
+let currentPlayer = null;
 
 function clearTimers(){ if (popupTimer){ clearTimeout(popupTimer); popupTimer = null; } }
 
@@ -150,7 +164,12 @@ document.addEventListener('DOMContentLoaded', ()=>{
     prepareAlpha(p);
   });
   round = 1;
-  isBusy = false;
+  phase = 'ready';
+});
+
+// Make overlay eat taps so nothing below can be clicked while visible
+['pointerdown','click','touchstart'].forEach(evt=>{
+  popup.addEventListener(evt, e=> e.stopPropagation(), { passive:true });
 });
 
 function resetPlayers(){
@@ -161,14 +180,21 @@ function resetPlayers(){
     p.style.backgroundImage=`url('${p.dataset.img}')`;
     p.style.transform='';
   });
-  isBusy = false;
+  currentPlayer = null;
+  phase = 'ready';
 }
 
 function onSpinEndFactory(p){
+  let handled = false; // ensure we run exactly once
   return function onSpinEnd(e){
-    if (e.animationName !== 'spinY360') return;  // only respond to the spin end
+    if (handled) return;
+    if (e.animationName !== 'spinY360') return;
+    handled = true;
     p.removeEventListener('animationend', onSpinEnd);
     p.classList.remove('spin3d');
+
+    // Lock into popup phase so nothing else can start
+    phase = 'popup';
 
     if (round === 1){
       // ----- LOSE -----
@@ -176,9 +202,9 @@ function onSpinEndFactory(p){
       playBoom();
       p.classList.add('impact','afterglow');
 
-      const thisRound = round;
+      const thisRound = 1;
       popupTimer = setTimeout(()=>{
-        if (round !== thisRound) return;
+        if (round !== thisRound || currentPlayer !== p) return; // stale -> ignore
 
         resultImg.src = './assets/popup-lose.webp';
         actionBtnCt.innerHTML = `<img id="try-again-btn" src="./assets/try-again-button.gif" alt="Try again">`;
@@ -192,10 +218,9 @@ function onSpinEndFactory(p){
           resetPlayers();
           round = 2; // next click is win
           players.forEach(pl=>{ pl.classList.add('zoom'); pl.style.pointerEvents='auto'; });
-          players.forEach(renderAlpha); // keep alpha maps in sync after layout reset
+          players.forEach(renderAlpha); // keep alpha maps in sync
         }, { once:true });
 
-        isBusy = false;
       }, 520);
 
     } else {
@@ -204,9 +229,9 @@ function onSpinEndFactory(p){
       playWin();
       p.classList.add('impact','afterglow');
 
-      const thisRound = round;
+      const thisRound = 2;
       popupTimer = setTimeout(()=>{
-        if (round !== thisRound) return;
+        if (round !== thisRound || currentPlayer !== p) return; // stale -> ignore
 
         resultImg.src = './assets/popup-win-2usd.webp';
         actionBtnCt.innerHTML = `
@@ -229,28 +254,35 @@ function onSpinEndFactory(p){
           setTimeout(()=> window.confetti({ particleCount: 60, spread: 320, startVelocity: 35, ticks: 80, origin: { y: 0.4 } }), 900);
         });
 
-        isBusy = false;
       }, 520);
     }
   };
 }
 
+// Use pointerdown for instant mobile response & fewer duplicate clicks
 players.forEach(p=>{
-  p.addEventListener('click', (ev)=>{
-    // Only accept clicks on visible player pixels (using the GIF’s alpha)
+  p.addEventListener('pointerdown', (ev)=>{
+    // Only accept taps on visible player pixels
     if (!isPixelHit(p, ev.clientX, ev.clientY)) return;
 
-    if (isBusy) return;
-    isBusy = true;
+    // If we're not ready, ignore (prevents double-starts)
+    if (phase !== 'ready') return;
 
+    // Lock immediately
+    phase = 'spinning';
+    currentPlayer = p;
+
+    ev.preventDefault();
     tapSfx();
     clearTimers();
 
+    // stop idle zoom and lock all
     players.forEach(x=>x.classList.remove('zoom'));
     players.forEach(x=>x.style.pointerEvents='none');
 
-    p.classList.add('spin3d');
+    // Ensure only this player can trigger end
     const handler = onSpinEndFactory(p);
+    p.classList.add('spin3d');
     p.addEventListener('animationend', handler);
-  });
+  }, { passive:false });
 });
