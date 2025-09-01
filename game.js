@@ -63,92 +63,124 @@ function trackPurchase(value = 2.00, currency = 'USD') {
   try { if (typeof fbq === 'function') fbq('trackCustom', 'ClaimClick'); } catch (_) {}
 }
 
-// ===== Game logic =====
+// ===== Game logic (robust second-click behavior) =====
 const players = document.querySelectorAll('.player');
-let playCount = 0; // 1 lose, 2 win
+let round = 1;             // 1 = lose round, 2 = win round
+let isBusy = false;        // lock to prevent re-entry
+let popupTimer = null;     // clear pending timers when switching state
 
-// init sprites and enable taps
+function clearTimers(){ if (popupTimer){ clearTimeout(popupTimer); popupTimer = null; } }
+
 document.addEventListener('DOMContentLoaded', ()=>{
   players.forEach(p=>{
     p.style.backgroundImage = `url('${p.dataset.img}')`;
     p.classList.add('zoom');
     p.style.pointerEvents='auto';
   });
-  playCount = 1;
+  round = 1;
+  isBusy = false;
 });
 
 function resetPlayers(){
+  clearTimers();
   players.forEach(p=>{
     p.classList.remove('spin3d','impact','afterglow','zoom');
     p.style.pointerEvents='none';
     p.style.backgroundImage=`url('${p.dataset.img}')`;
     p.style.transform='';
   });
+  isBusy = false;
 }
 
-function once(el, evt, fn){ const h=(e)=>{ el.removeEventListener(evt,h); fn(e); }; el.addEventListener(evt,h,{passive:true}); }
+function onSpinEndFactory(p){
+  // Only react to the end of the SPIN animation, not impact/glow
+  return function onSpinEnd(e){
+    if (e.animationName !== 'spinY360') return;
+    p.removeEventListener('animationend', onSpinEnd);
+    p.classList.remove('spin3d');
+
+    if (round === 1){
+      // ----- LOSE ROUND -----
+      p.style.backgroundImage = "url('./assets/sad.png')";
+      playBoom();
+      p.classList.add('impact','afterglow');
+
+      const thisRound = round;
+      popupTimer = setTimeout(()=>{
+        // If state changed meanwhile, abort
+        if (round !== thisRound) return;
+
+        resultImg.src = './assets/popup-lose.webp';
+        actionBtnCt.innerHTML = `<img id="try-again-btn" src="./assets/try-again-button.gif" alt="Try again">`;
+        popup.classList.add('show');
+
+        const tab = document.getElementById('try-again-btn');
+        if (tab) tab.addEventListener('click', ()=>{
+          clickSfx();
+          popup.classList.remove('show');
+          p.classList.remove('afterglow');
+          resetPlayers();
+          // Next round is WIN
+          round = 2;
+          players.forEach(pl=>{ pl.classList.add('zoom'); pl.style.pointerEvents='auto'; });
+        }, { once:true });
+
+        // allow UI interaction again (overlay blocks the field anyway)
+        isBusy = false;
+      }, 650);
+
+    } else {
+      // ----- WIN ROUND -----
+      p.style.backgroundImage = "url('./assets/star.gif')";
+      playWin();
+      p.classList.add('impact','afterglow');
+
+      const thisRound = round;
+      popupTimer = setTimeout(()=>{
+        if (round !== thisRound) return;
+
+        resultImg.src = './assets/popup-win-2usd.webp';
+        actionBtnCt.innerHTML = `
+          <a id="claim-btn" href="https://t.me/FAFA558khwin" target="_blank" rel="noopener">
+            <img src="./assets/claim-button.gif" alt="Claim">
+          </a>`;
+        popup.classList.add('show');
+
+        const cb = document.getElementById('claim-btn');
+        if (cb) cb.addEventListener('click', (ev) => {
+          clickSfx();                 // UI sound
+          trackPurchase(2.00, 'USD'); // Pixel purchase
+          const url = cb.href;        // let pixel fire, then open
+          ev.preventDefault();
+          setTimeout(() => { window.open(url, '_blank', 'noopener'); }, 300);
+        }, { once:true });
+
+        if (window.confetti){
+          window.confetti({ particleCount: 80, spread: 360, startVelocity: 45, ticks: 90, origin: { y: 0.5 } });
+          setTimeout(()=> window.confetti({ particleCount: 60, spread: 320, startVelocity: 35, ticks: 80, origin: { y: 0.4 } }), 900);
+        }
+
+        isBusy = false;
+      }, 650);
+    }
+  };
+}
 
 players.forEach(p=>{
   p.addEventListener('click', ()=>{
+    if (isBusy) return;            // prevent double-start
+    isBusy = true;
+
     tapSfx();
+    clearTimers();
+
+    // stop idle zoom and lock all
     players.forEach(x=>x.classList.remove('zoom'));
     players.forEach(x=>x.style.pointerEvents='none');
+
+    // spin, then proceed when SPIN completes (ignore impact/glow ends)
     p.classList.add('spin3d');
-
-    once(p, 'animationend', ()=>{
-      p.classList.remove('spin3d');
-
-      if (playCount === 1){
-        // LOSE round
-        p.style.backgroundImage = "url('./assets/sad.png')";
-        playBoom();
-        p.classList.add('impact','afterglow');
-
-        setTimeout(()=>{
-          resultImg.src = './assets/popup-lose.webp';
-          actionBtnCt.innerHTML = `<img id="try-again-btn" src="./assets/try-again-button.gif" alt="Try again">`;
-          popup.classList.add('show');
-
-          const tab = document.getElementById('try-again-btn');
-          if (tab) tab.addEventListener('click', ()=>{
-            clickSfx();
-            popup.classList.remove('show');
-            p.classList.remove('afterglow');
-            resetPlayers();
-            playCount=2;
-            players.forEach(pl=>{ pl.classList.add('zoom'); pl.style.pointerEvents='auto'; });
-          }, { once:true });
-        }, 650);
-
-      } else {
-        // WIN round
-        p.style.backgroundImage = "url('./assets/star.gif')";
-        playWin();
-        p.classList.add('impact','afterglow');
-
-        setTimeout(()=>{
-          resultImg.src = './assets/popup-win-2usd.webp';
-          actionBtnCt.innerHTML = `
-            <a id="claim-btn" href="https://t.me/FAFA558khwin" target="_blank" rel="noopener">
-              <img src="./assets/claim-button.gif" alt="Claim">
-            </a>`;
-          popup.classList.add('show');
-
-          const cb = document.getElementById('claim-btn');
-          if (cb) cb.addEventListener('click', (ev) => {
-            clickSfx();                 // UI sound
-            trackPurchase(2.00, 'USD'); // Pixel purchase
-            const url = cb.href;        // let pixel fire, then open
-            ev.preventDefault();
-            setTimeout(() => { window.open(url, '_blank', 'noopener'); }, 300);
-          }, { once:true });
-
-          if (window.confetti){
-            window.confetti({ particleCount: 80, spread: 360, startVelocity: 45, ticks: 90, origin: { y: 0.5 } });
-            setTimeout(()=> window.confetti({ particleCount: 60, spread: 320, startVelocity: 35, ticks: 80, origin: { y: 0.4 } }), 900);
-          }
-        }, 650);
-      }
-    });
+    const handler = onSpinEndFactory(p);
+    p.addEventListener('animationend', handler);
   });
 });
