@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Football Pick • 168 (v2.2)</title>
+  <link rel="icon" href="./assets/ball.ico" type="image/x-icon" />
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- Meta Pixel Code -->
+  <script>
+    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+    n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}
+    (window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', 'YOUR_PIXEL_ID');  // <-- replace with your Pixel ID
+    fbq('track', 'PageView');
+  </script>
+  <noscript>
+    <img height="1" width="1" style="display:none"
+         src="https://www.facebook.com/tr?id=YOUR_PIXEL_ID&ev=PageView&noscript=1"/>
+  </noscript>
+  <!-- End Meta Pixel Code -->
+
+  <!-- Confetti -->
+  <script defer src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+
+  <!-- Game JS -->
+  <script defer src="game.js"></script>
+</head>
+<body>
+  <div class="backdrop" aria-hidden="true"></div>
+
+  <div class="stage">
+    <div class="loading" id="loading"><div class="spinner"></div></div>
+
+    <div class="landing hidden" id="landing">
+      <img class="landing-bg poster" src="./assets/bg.webp" alt="Football stadium" />
+      <img class="title" src="./assets/168.webp" alt="168USD" />
+
+      <div class="players">
+        <div class="slot ronaldo"><button class="player" data-img="./assets/ronaldo.gif" aria-label="Ronaldo"></button></div>
+        <div class="slot messi"><button class="player" data-img="./assets/messi.gif" aria-label="Messi"></button></div>
+        <div class="slot haaland"><button class="player" data-img="./assets/haaland.gif" aria-label="Haaland"></button></div>
+        <div class="slot neymar"><button class="player" data-img="./assets/neymar.gif" aria-label="Neymar"></button></div>
+        <div class="slot mbappe"><button class="player" data-img="./assets/mbappe.gif" aria-label="Mbappé"></button></div>
+      </div>
+
+      <div class="popup" id="popup">
+        <img class="result" id="resultImg" src="" alt="Result" />
+        <div class="action-button" id="actionButton"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audio (ensure these exist under ./assets/) -->
+  <audio id="boomSound1" src="./assets/boom-sound1.mp3" preload="auto"></audio>
+  <audio id="boomSound2" src="./assets/boom-sound2.mp3" preload="auto"></audio>
+  <audio id="winSound1"  src="./assets/win-sound1.mp3"  preload="auto"></audio>
+  <audio id="winSound2"  src="./assets/win-sound2.mp3"  preload="auto"></audio>
+  <audio id="bgMusic"    src="./assets/bg-music.mp3"    preload="auto" loop playsinline></audio>
+</body>
+</html>

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Football Pick • 168 (v2.2)</title>
+  <link rel="icon" href="./favicon.ico" type="image/x-icon" />
+  <script defer src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+  <style>
+    :root{ --backdrop-blur:22px; --backdrop-dim:.6; }
+    html,body{ margin:0; height:100%; background:#000; display:grid; place-items:center; overflow:hidden; }
+
+    /* blurred backdrop */
+    .backdrop{ position:fixed; inset:0; background:center/cover no-repeat url("./assets/bg3.webp"); filter:blur(var(--backdrop-blur)) brightness(var(--backdrop-dim)); transform:scale(1.08); z-index:0; }
+
+    /* stage */
+    .stage{ position:relative; width:min(100vw,calc(100dvh*9/16)); aspect-ratio:9/16; overflow:hidden; z-index:1; filter:drop-shadow(0 10px 28px rgba(0,0,0,.6)); perspective: 1000px; }
+    .poster{ width:100%; height:100%; object-fit:contain; }
+
+    /* loading */
+    .loading{ position:absolute; inset:0; background:#000; display:flex; align-items:center; justify-content:center; z-index:5;}
+    .spinner{ width:50px;height:50px;border:5px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;}
+    @keyframes spin{ to{ transform:rotate(360deg);} }
+    .hidden{ display:none; }
+
+    /* title */
+    .title{ position:absolute; top:19%; left:74%; transform:translateX(-50%); width:min(37%,420px); }
+
+    /* SLOT wrappers keep the positions stable; sprites animate inside */
+    .players{ position:absolute; inset:0; z-index:2; }
+    .slot{ position:absolute; width:clamp(150px,36%,290px); aspect-ratio:1/1; }
+    .slot.ronaldo{ top:28%; left:8%; }
+    .slot.messi  { top:28%; right:8%; }
+    .slot.haaland{ top:48%; left:31%; }
+    .slot.neymar { bottom:13%; left:9%; }
+    .slot.mbappe { bottom:13%; right:9%; }
+
+    /* sprite button */
+    .player{ position:absolute; inset:0; border:0; background: center bottom/contain no-repeat; cursor:pointer; pointer-events:none; transition:filter .28s ease; filter: drop-shadow(0 10px 28px rgba(0,0,0,.45)); background-color:transparent; transform-style:preserve-3d; backface-visibility:hidden; transform-origin:center bottom; }
+
+    /* idle */
+    .player.zoom { animation: zoom .5s infinite alternate; }
+    @keyframes zoom { from{transform:translateZ(0) scale(1);} to{transform:translateZ(0) scale(1.08);} }
+
+    /* click effects */
+    .player.spin3d { animation: spinY360 0.65s ease-in-out forwards; }
+    .player.impact { animation: impactPop 0.28s ease-out; }
+    .player.afterglow::after{ content:""; position:absolute; left:50%; bottom:6%; width:60%; height:30%; transform:translateX(-50%); border-radius:50%; background:radial-gradient(ellipse at center, rgba(255,225,80,.75), rgba(255,225,80,0) 70%); filter:blur(6px); animation: glowPulse 1.2s ease-in-out infinite; pointer-events:none; }
+
+    @keyframes spinY360{ 0%{ transform:perspective(900px) rotateY(0)   scale(1); }
+                         50%{ transform:perspective(900px) rotateY(200deg) scale(1.06); filter:brightness(1.1); }
+                        100%{ transform:perspective(900px) rotateY(360deg) scale(1);    filter:brightness(1); } }
+    @keyframes impactPop{ 0%{ transform:translateZ(0) scale(1); filter:brightness(1); }
+                         50%{ transform:translateZ(0) scale(1.18); filter:brightness(1.15); }
+                        100%{ transform:translateZ(0) scale(1); filter:brightness(1); } }
+    @keyframes glowPulse{ 0%,100%{ opacity:.9; transform:translateX(-50%) scale(1); } 50%{ opacity:.2; transform:translateX(-50%) scale(1.35); } }
+
+    /* popup */
+    .popup{ position:absolute; inset:0; background:rgba(0,0,0,.72); display:flex; flex-direction:column; align-items:center; justify-content:center; opacity:0; transform:scale(.86); pointer-events:none; transition:.4s; z-index:10; }
+    .popup.show{ opacity:1; transform:scale(1); pointer-events:auto; }
+    .result{ width:min(92%,360px); margin-bottom:18px; }
+    .action-button{ position:relative; width:70%; }
+    .action-button img{ width:100%; display:block; }
+
+    /* short/wide displays */
+    @media (max-height:700px){ .slot{ width:38%; } .slot.ronaldo,.slot.messi{ top:30%; } .slot.haaland{ top:49%; left:30%; } .slot.neymar,.slot.mbappe{ bottom:10%; } }
+  </style>
+</head>
+<body>
+  <div class="backdrop" aria-hidden="true"></div>
+
+  <div class="stage">
+    <div class="loading" id="loading"><div class="spinner"></div></div>
+
+    <div class="landing hidden" id="landing">
+      <img class="landing-bg poster" src="./assets/bg.webp" alt="Football stadium" />
+      <img class="title" src="./assets/168.webp" alt="168USD" />
+
+      <div class="players">
+        <div class="slot ronaldo"><button class="player" data-img="./assets/ronaldo.gif" aria-label="Ronaldo"></button></div>
+        <div class="slot messi"><button class="player" data-img="./assets/messi.gif" aria-label="Messi"></button></div>
+        <div class="slot haaland"><button class="player" data-img="./assets/haaland.gif" aria-label="Haaland"></button></div>
+        <div class="slot neymar"><button class="player" data-img="./assets/neymar.gif" aria-label="Neymar"></button></div>
+        <div class="slot mbappe"><button class="player" data-img="./assets/mbappe.gif" aria-label="Mbappé"></button></div>
+      </div>
+
+      <div class="popup" id="popup">
+        <img class="result" id="resultImg" src="" alt="Result" />
+        <div class="action-button" id="actionButton"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audio (make sure these files exist) -->
+  <audio id="boomSound1" src="./assets/boom-sound1.mp3" preload="auto"></audio>
+  <audio id="boomSound2" src="./assets/win-sound2.mp3" preload="auto"></audio>
+  <audio id="winSound1"  src="./assets/win-sound1.mp3"  preload="auto"></audio>
+  <audio id="winSound2"  src="./assets/win-sound2.mp3"  preload="auto"></audio>
+  <audio id="bgMusic"    src="./assets/bg-music.mp3"    preload="auto" loop playsinline></audio>
+
+  <script>
+    // ===== Helper: log but don't crash =====
+    const log = (...a)=>{ try{ console.log('[game]',...a); }catch(_){} };
+
+    // ===== Elements =====
+    const loading = document.getElementById('loading');
+    const landing = document.getElementById('landing');
+    const popup = document.getElementById('popup');
+    const resultImg = document.getElementById('resultImg');
+    const actionBtnCt = document.getElementById('actionButton');
+
+    const boom1 = document.getElementById('boomSound1');
+    const boom2 = document.getElementById('boomSound2');
+    const win1  = document.getElementById('winSound1');
+    const win2  = document.getElementById('winSound2');
+    const bgm   = document.getElementById('bgMusic');
+
+    // ===== Audio: small pools to avoid cutoffs =====
+    function makePool(el, size=3){
+      const clones = Array.from({length:size}, ()=> el.cloneNode(true));
+      clones.forEach(c=>{ c.preload='auto'; c.load?.(); });
+      let i=0; return { play(){ const a=clones[i++%clones.length]; try{ a.currentTime=0; a.play(); }catch(e){ log('audio play err', e); } }, setVolume(v){ clones.forEach(c=> c.volume=v); } };
+    }
+    const sfx = { click:new Audio('./assets/button-click.mp3'), tap:new Audio('./assets/tap.mp3'), boomA:makePool(boom1,3), boomB:makePool(boom2,3), winA:makePool(win1,3), winB:makePool(win2,3) };
+
+    function clickSfx(){ try{ sfx.click.currentTime=0; sfx.click.play(); }catch(e){} }
+    function tapSfx(){ try{ sfx.tap.currentTime=0; sfx.tap.play(); }catch(e){} }
+    function playBoom(){ sfx.boomA.play(); sfx.boomB.play(); }
+    function playWin(){ sfx.winA.play(); sfx.winB.play(); }
+
+    // ===== Fast boot: show UI on DOM ready (not waiting for images/audio) =====
+    function showUI(){ loading.style.display='none'; landing.classList.remove('hidden'); }
+    document.addEventListener('DOMContentLoaded', showUI);
+    // Fallback in case DOMContentLoaded missed
+    setTimeout(()=>{ if(landing.classList.contains('hidden')) showUI(); }, 1500);
+
+    // ===== Optional BGM: try early silently then fade in; otherwise start on first tap =====
+    bgm.volume = 0; // start silent
+    function fadeTo(target=0.35, ms=700){ const start=bgm.volume, diff=target-start, t0=performance.now(); function step(t){ const p=Math.min(1,(t-t0)/ms); bgm.volume=start+diff*p; if(p<1) requestAnimationFrame(step);} requestAnimationFrame(step);}    
+    async function startBgm(){ try{ await bgm.play(); fadeTo(0.35,800); }catch(e){ log('bgm blocked'); } }
+    document.addEventListener('DOMContentLoaded', startBgm);
+    // if blocked, unlock on first gesture
+    const tryUnlock = ()=>{ startBgm(); window.removeEventListener('pointerdown', tryUnlock); window.removeEventListener('keydown', tryUnlock); };
+    window.addEventListener('pointerdown', tryUnlock, { once:true, passive:true });
+    window.addEventListener('keydown', tryUnlock, { once:true });
+    document.addEventListener('visibilitychange', ()=>{ if(document.hidden){ try{ bgm.pause(); }catch(_){}} else if(bgm.paused){ startBgm(); } });
+
+    // ===== Game logic =====
+    const players = document.querySelectorAll('.player');
+    let playCount = 0; // 1 lose, 2 win
+
+    // init sprites and enable taps
+    document.addEventListener('DOMContentLoaded', ()=>{
+      players.forEach(p=>{ p.style.backgroundImage = `url('${p.dataset.img}')`; p.classList.add('zoom'); p.style.pointerEvents='auto'; });
+      playCount = 1;
+    });
+
+    function resetPlayers(){ players.forEach(p=>{ p.classList.remove('spin3d','impact','afterglow','zoom'); p.style.pointerEvents='none'; p.style.backgroundImage=`url('${p.dataset.img}')`; p.style.transform=''; }); }
+
+    function once(el, evt, fn){ const h=(e)=>{ el.removeEventListener(evt,h); fn(e); }; el.addEventListener(evt,h,{passive:true}); }
+
+    players.forEach(p=>{
+      p.addEventListener('click', ()=>{
+        tapSfx();
+        players.forEach(x=>x.classList.remove('zoom'));
+        players.forEach(x=>x.style.pointerEvents='none');
+        p.classList.add('spin3d');
+
+        once(p, 'animationend', ()=>{
+          p.classList.remove('spin3d');
+
+          if (playCount === 1){
+            // LOSE round
+            p.style.backgroundImage = "url('./assets/sad.png')";
+            playBoom();
+            p.classList.add('impact','afterglow');
+
+            setTimeout(()=>{
+              resultImg.src = './assets/popup-lose.webp';
+              actionBtnCt.innerHTML = `<img id="try-again-btn" src="./assets/try-again-button.gif" alt="Try again">`;
+              popup.classList.add('show');
+              const tab = document.getElementById('try-again-btn');
+              if (tab) tab.addEventListener('click', ()=>{ clickSfx(); popup.classList.remove('show'); p.classList.remove('afterglow'); resetPlayers(); playCount=2; players.forEach(pl=>{ pl.classList.add('zoom'); pl.style.pointerEvents='auto'; }); }, { once:true });
+            }, 650);
+
+          } else {
+            // WIN round
+            p.style.backgroundImage = "url('./assets/star.gif')";
+            playWin();
+            p.classList.add('impact','afterglow');
+
+            setTimeout(()=>{
+              resultImg.src = './assets/popup-win-2usd.webp';
+              actionBtnCt.innerHTML = `
+                <a id="claim-btn" href="https://t.me/fafa558kh_bot?start=LD1" target="_blank" rel="noopener">
+                  <img src="./assets/claim-button.gif" alt="Claim">
+                </a>`;
+              popup.classList.add('show');
+              const cb = document.getElementById('claim-btn');
+              if (cb) cb.addEventListener('click', ()=> clickSfx(), { once:true });
+              if (window.confetti){
+                window.confetti({ particleCount: 80, spread: 360, startVelocity: 45, ticks: 90, origin: { y: 0.5 } });
+                setTimeout(()=> window.confetti({ particleCount: 60, spread: 320, startVelocity: 35, ticks: 80, origin: { y: 0.4 } }), 900);
+              }
+            }, 650);
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>

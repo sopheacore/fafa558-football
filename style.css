@@ -1,0 +1,99 @@
+:root{ --backdrop-blur:22px; --backdrop-dim:.6; }
+html,body{ margin:0; height:100%; background:#000; display:grid; place-items:center; overflow:hidden; }
+
+/* blurred backdrop */
+.backdrop{
+  position:fixed; inset:0;
+  background:center/cover no-repeat url("./assets/bg3.webp");
+  filter:blur(var(--backdrop-blur)) brightness(var(--backdrop-dim));
+  transform:scale(1.08);
+  z-index:0;
+}
+
+/* stage */
+.stage{
+  position:relative; width:min(100vw,calc(100dvh*9/16)); aspect-ratio:9/16;
+  overflow:hidden; z-index:1;
+  filter:drop-shadow(0 10px 28px rgba(0,0,0,.6));
+  perspective: 1000px;
+}
+.poster{ width:100%; height:100%; object-fit:contain; }
+
+/* loading */
+.loading{ position:absolute; inset:0; background:#000; display:flex; align-items:center; justify-content:center; z-index:5;}
+.spinner{ width:50px;height:50px;border:5px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;}
+@keyframes spin{ to{ transform:rotate(360deg);} }
+.hidden{ display:none; }
+
+/* title */
+.title{ position:absolute; top:19%; left:74%; transform:translateX(-50%); width:min(37%,420px); }
+
+/* SLOT wrappers keep the positions stable; sprites animate inside */
+.players{ position:absolute; inset:0; z-index:2; }
+.slot{ position:absolute; width:clamp(150px,36%,290px); aspect-ratio:1/1; }
+.slot.ronaldo{ top:28%; left:8%; }
+.slot.messi  { top:28%; right:8%; }
+.slot.haaland{ top:48%; left:31%; }
+.slot.neymar { bottom:13%; left:9%; }
+.slot.mbappe { bottom:13%; right:9%; }
+
+/* sprite button */
+.player{
+  position:absolute; inset:0; border:0;
+  background: center bottom/contain no-repeat;
+  cursor:pointer; pointer-events:none;
+  transition:filter .28s ease;
+  filter: drop-shadow(0 10px 28px rgba(0,0,0,.45));
+  background-color:transparent;
+  transform-style:preserve-3d; backface-visibility:hidden;
+  transform-origin:center bottom;
+}
+
+/* idle */
+.player.zoom { animation: zoom .5s infinite alternate; }
+@keyframes zoom { from{transform:translateZ(0) scale(1);} to{transform:translateZ(0) scale(1.08);} }
+
+/* click effects */
+.player.spin3d { animation: spinY360 0.65s ease-in-out forwards; }
+.player.impact { animation: impactPop 0.28s ease-out; }
+.player.afterglow::after{
+  content:""; position:absolute; left:50%; bottom:6%;
+  width:60%; height:30%; transform:translateX(-50%);
+  border-radius:50%;
+  background:radial-gradient(ellipse at center, rgba(255,225,80,.75), rgba(255,225,80,0) 70%);
+  filter:blur(6px); animation: glowPulse 1.2s ease-in-out infinite; pointer-events:none;
+}
+
+@keyframes spinY360{
+  0%{ transform:perspective(900px) rotateY(0)   scale(1); }
+  50%{ transform:perspective(900px) rotateY(200deg) scale(1.06); filter:brightness(1.1); }
+  100%{ transform:perspective(900px) rotateY(360deg) scale(1);    filter:brightness(1); }
+}
+@keyframes impactPop{
+  0%{ transform:translateZ(0) scale(1); filter:brightness(1); }
+  50%{ transform:translateZ(0) scale(1.18); filter:brightness(1.15); }
+  100%{ transform:translateZ(0) scale(1); filter:brightness(1); }
+}
+@keyframes glowPulse{
+  0%,100%{ opacity:.9; transform:translateX(-50%) scale(1); }
+  50%{ opacity:.2; transform:translateX(-50%) scale(1.35); }
+}
+
+/* popup */
+.popup{
+  position:absolute; inset:0; background:rgba(0,0,0,.72);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  opacity:0; transform:scale(.86); pointer-events:none; transition:.4s; z-index:10;
+}
+.popup.show{ opacity:1; transform:scale(1); pointer-events:auto; }
+.result{ width:min(92%,360px); margin-bottom:18px; }
+.action-button{ position:relative; width:70%; }
+.action-button img{ width:100%; display:block; }
+
+/* short/wide displays */
+@media (max-height:700px){
+  .slot{ width:38%; }
+  .slot.ronaldo,.slot.messi{ top:30%; }
+  .slot.haaland{ top:49%; left:30%; }
+  .slot.neymar,.slot.mbappe{ bottom:10%; }
+}
