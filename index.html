@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Football Pick • 168 (v3.1)</title>
+  <title>Football Pick • 168 (v3.2)</title>
   <link rel="icon" href="./assets/ball.ico" type="image/x-icon" />
 
   <!-- Styles -->
@@ -26,7 +26,7 @@
   <!-- End Meta Pixel Code -->
 
   <!-- Game JS -->
-  <script defer src="game.js"></script>
+  <script defer src="game.js?v=3.2"></script>
 </head>
 <body>
   <!-- blurred backdrop -->
@@ -48,12 +48,23 @@
         <div class="slot neymar"><button class="player" data-img="./assets/neymar.gif" aria-label="Neymar"></button></div>
         <div class="slot mbappe"><button class="player" data-img="./assets/mbappe.gif" aria-label="Mbappé"></button></div>
       </div>
+    </div>
 
-      <!-- Popup -->
-      <div class="popup" id="popup">
-        <img class="result" id="resultImg" src="" alt="Result" decoding="async" />
-        <div class="action-button" id="actionButton"></div>
-      </div>
+    <!-- Fixed popups in HTML (only toggled by JS) -->
+    <!-- Lose popup -->
+    <div class="popup" id="popup-lose" aria-hidden="true">
+      <img class="result" src="./assets/popup-lose.webp" alt="Try again" decoding="async" />
+      <button class="action-button" id="btn-try-again" aria-label="Try again">
+        <img src="./assets/try-again-button.gif" alt="Try again" />
+      </button>
+    </div>
+
+    <!-- Win popup -->
+    <div class="popup" id="popup-win" aria-hidden="true">
+      <img class="result" src="./assets/popup-win-2usd.webp" alt="You win" decoding="async" />
+      <a class="action-button" id="btn-claim" href="https://t.me/FAFA558khwin" target="_blank" rel="noopener" aria-label="Claim">
+        <img src="./assets/claim-button.gif" alt="Claim" />
+      </a>
     </div>
   </div>
 

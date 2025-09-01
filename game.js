@@ -6,31 +6,32 @@ const $$ = s => document.querySelectorAll(s);
 // ===== elements =====
 const loading = $('#loading');
 const landing = $('#landing');
-const popup = $('#popup');
-const resultImg = $('#resultImg');
-const actionBtnCt = $('#actionButton');
+const players = $$('.player');
+
+const popupLose = $('#popup-lose');
+const popupWin  = $('#popup-win');
+const btnTryAgain = $('#btn-try-again');
+const btnClaim    = $('#btn-claim');
 
 const boom1 = $('#boomSound1');
 const boom2 = $('#boomSound2');
 const win1  = $('#winSound1');
 const win2  = $('#winSound2');
 const bgm   = $('#bgMusic');
-const players = $$('.player');
 
-// ===== constants (MUST match CSS vars) =====
-const SPIN_MS   = 650;  // matches --spin-ms
-const IMPACT_MS = 280;  // matches --impact-ms
+// ===== constants (keep in sync with CSS) =====
+const SPIN_MS   = 650;
+const IMPACT_MS = 280;
 
 // ===== audio =====
 function makePool(el, size=2){
   const src = el.currentSrc || el.src;
   const items = Array.from({length:size}, ()=>{ const a=new Audio(src); a.preload='none'; return a; });
-  let i=0;
-  return { play(){ const a=items[i++%items.length]; try{ a.currentTime=0; a.play(); }catch(e){ log('sfx play',e); } } };
+  let i=0; return { play(){ const a=items[i++%items.length]; try{ a.currentTime=0; a.play(); }catch(e){ log('sfx play',e); } } };
 }
 const sfx = {
   click:new Audio('./assets/button-click.mp3'),
-  tap:new Audio('./assets/tap.mp3'),
+  tap:  new Audio('./assets/tap.mp3'),
   boomA:makePool(boom1,2),
   boomB:makePool(boom2,2),
   winA: makePool(win1,2),
@@ -60,7 +61,7 @@ window.addEventListener('pointerdown', tryUnlock, {once:true, passive:true});
 window.addEventListener('keydown', tryUnlock, {once:true});
 document.addEventListener('visibilitychange', ()=>{ if(document.hidden){ try{bgm.pause();}catch{}} else if(bgm.paused){ startBgm(); } });
 
-// ===== lazy confetti =====
+// ===== confetti (lazy) =====
 let confettiLoading=false;
 function withConfetti(run){
   if(window.confetti) return run();
@@ -71,20 +72,20 @@ function withConfetti(run){
   s.async=true; s.onload=run; document.head.appendChild(s);
 }
 
-// ===== pixel (meta) =====
+// ===== pixel (Meta) =====
 function trackPurchase(value=2.00,currency='USD'){
   try{ if(typeof fbq==='function') fbq('track','Purchase',{value,currency}); }catch(_){}
   try{ if(typeof fbq==='function') fbq('trackCustom','ClaimClick'); }catch(_){}
 }
 
-// ===== per-pixel hit using same GIF =====
+// ===== per-pixel click using the same GIF =====
 const alphaMap = new Map(); // el -> {canvas,ctx,w,h}
 function prepareAlpha(el){
   const src = el.dataset.img; if(!src) return;
   const img = new Image();
-  img.crossOrigin = 'anonymous'; // ok if same-origin; if CDN, allow CORS
+  img.crossOrigin='anonymous';
   img.src = src;
-  img.onload = ()=>{ el._alphaImg = img; renderAlpha(el); };
+  img.onload = ()=>{ el._alphaImg=img; renderAlpha(el); };
   img.onerror = ()=>{ log('alpha load fail', src); };
 }
 function renderAlpha(el){
@@ -109,10 +110,10 @@ function isPixelHit(el, clientX, clientY){
 }
 let resizeT; window.addEventListener('resize', ()=>{ clearTimeout(resizeT); resizeT=setTimeout(()=>players.forEach(renderAlpha),120); });
 
-// ===== strict state machine with token guard =====
-let round = 1;              // 1 = lose first, 2 = win second
-let token = 0;              // increments each round start
-let state = 'idle';         // 'idle' | 'spinning' | 'popup'
+// ===== state (token-guarded; fixed HTML popups) =====
+let round = 1;      // 1 = lose, 2 = win
+let token = 0;      // increments each round start
+let state = 'idle'; // 'idle' | 'spinning' | 'popup'
 
 function enablePlayers(){ players.forEach(p=>{ p.classList.add('zoom'); p.style.pointerEvents='auto'; }); }
 function disablePlayers(){ players.forEach(p=>{ p.classList.remove('zoom'); p.style.pointerEvents='none'; }); }
@@ -123,71 +124,73 @@ function hardResetSprites(){
     p.style.transform='';
   });
 }
+
+function hideAllPopups(){
+  popupLose.classList.remove('show');
+  popupWin.classList.remove('show');
+  popupLose.setAttribute('aria-hidden','true');
+  popupWin.setAttribute('aria-hidden','true');
+}
+
+// Always bind popup button handlers ONCE
+btnTryAgain?.addEventListener('click', ()=>{
+  clickSfx();
+  // Close lose popup and prep for round 2
+  hideAllPopups();
+  hardResetSprites();
+  round = 2;
+  state = 'idle';
+  enablePlayers();
+  players.forEach(renderAlpha);
+}, { once:false });
+
+btnClaim?.addEventListener('click', (ev)=>{
+  ev.preventDefault();
+  clickSfx();
+  trackPurchase(2.00,'USD');
+  const url = btnClaim.href;
+  setTimeout(()=> window.open(url,'_blank','noopener'), 300);
+}, { once:false });
+
+// Helper: schedule guarded timeouts (ignore if token changed)
 function schedule(ms, myToken, fn){
   const t=setTimeout(()=>{ if(myToken===token) fn(); }, ms);
   return ()=> clearTimeout(t);
 }
 
-// Lose popup
+// Show popups (HTML already contains markup; we only toggle)
 function showLose(myToken){
-  if (myToken !== token) return; // guard
-  resultImg.src = './assets/popup-lose.webp';
-  actionBtnCt.innerHTML = `<img id="try-again-btn" src="./assets/try-again-button.gif" alt="Try again">`;
-  popup.classList.add('show');
-
-  const btn = $('#try-again-btn');
-  if (btn){
-    btn.onclick = () => {
-      clickSfx();
-      popup.classList.remove('show');
-      // prepare next round
-      hardResetSprites();
-      round = 2;
-      state = 'idle';
-      enablePlayers();
-      players.forEach(renderAlpha);
-    };
-  }
+  if (myToken !== token) return;
+  // If somehow we are in round 2 already, never show a lose popup
+  if (round !== 1) return;
+  hideAllPopups();
+  popupLose.classList.add('show');
+  popupLose.setAttribute('aria-hidden','false');
 }
 
-// Win popup
 function showWin(myToken){
-  if (myToken !== token) return; // guard
-  resultImg.src = './assets/popup-win-2usd.webp';
-  actionBtnCt.innerHTML = `
-    <a id="claim-btn" href="https://t.me/FAFA558khwin" target="_blank" rel="noopener">
-      <img src="./assets/claim-button.gif" alt="Claim">
-    </a>`;
-  popup.classList.add('show');
-
-  const cb = $('#claim-btn');
-  if (cb) cb.addEventListener('click', (ev)=>{
-    ev.preventDefault();
-    clickSfx();
-    trackPurchase(2.00,'USD');
-    const url = cb.href;
-    setTimeout(()=> window.open(url,'_blank','noopener'), 300);
-  }, {once:true});
-
+  if (myToken !== token) return;
+  hideAllPopups();
+  popupWin.classList.add('show');
+  popupWin.setAttribute('aria-hidden','false');
+  // confetti
   withConfetti(()=>{
     window.confetti({ particleCount: 80, spread: 360, startVelocity: 45, ticks: 90, origin: { y: 0.5 } });
     setTimeout(()=> window.confetti({ particleCount: 60, spread: 320, startVelocity: 35, ticks: 80, origin: { y: 0.4 } }), 900);
   });
 }
 
-// Core round (no animationend; deterministic timers + token guard)
+// Core round (deterministic timers + token guard)
 function runRound(p){
-  // begin new round
   token++; const myToken = token;
   state = 'spinning';
   disablePlayers();
 
-  // start spin (duration set in CSS variable, but we use the same ms)
+  // spin
   p.classList.add('spin3d');
 
   // after SPIN
   schedule(SPIN_MS, myToken, ()=>{
-    // stop spin
     p.classList.remove('spin3d');
 
     if (round === 1){
@@ -225,29 +228,22 @@ document.addEventListener('DOMContentLoaded', ()=>{
     p.classList.add('zoom');
     prepareAlpha(p);
   });
+  hideAllPopups();
   enablePlayers();
   round = 1;
   state = 'idle';
 });
 
-// Eat taps on popup area only when shown (CSS handles pointer-events)
-['pointerdown','click','touchstart'].forEach(evt=>{
-  popup.addEventListener(evt, e=> e.stopPropagation(), {passive:true});
-});
-
-// Player interaction (pointerdown for mobile)
+// Player interaction (pointerdown for mobile) + per-pixel hit
 players.forEach(p=>{
   p.addEventListener('pointerdown', (ev)=>{
     if (state !== 'idle') return;
     if (!isPixelHit(p, ev.clientX, ev.clientY)) return;
-
     ev.preventDefault();
     tapSfx();
-
-    // lock all and run round
     runRound(p);
   }, {passive:false});
 });
 
-// keep alpha maps aligned on orientation change
+// keep alpha maps aligned after orientation change
 window.addEventListener('orientationchange', ()=> setTimeout(()=>players.forEach(renderAlpha), 250));
