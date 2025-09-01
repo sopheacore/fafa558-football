@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Football Pick • 168 (v3)</title>
+  <title>Football Pick • 168 (v3.1)</title>
   <link rel="icon" href="./assets/ball.ico" type="image/x-icon" />
 
   <!-- Styles -->
@@ -16,7 +16,7 @@
     n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
     t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}
     (window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', 'YOUR_PIXEL_ID');  /* <-- replace with your Pixel ID */
+    fbq('init', 'YOUR_PIXEL_ID'); /* <-- replace with your Pixel ID */
     fbq('track', 'PageView');
   </script>
   <noscript>
@@ -25,12 +25,14 @@
   </noscript>
   <!-- End Meta Pixel Code -->
 
-  <!-- Game JS (confetti loads lazily inside) -->
+  <!-- Game JS -->
   <script defer src="game.js"></script>
 </head>
 <body>
+  <!-- blurred backdrop -->
   <div class="backdrop" aria-hidden="true"></div>
 
+  <!-- Stage -->
   <div class="stage">
     <div class="loading" id="loading"><div class="spinner"></div></div>
 
@@ -47,6 +49,7 @@
         <div class="slot mbappe"><button class="player" data-img="./assets/mbappe.gif" aria-label="Mbappé"></button></div>
       </div>
 
+      <!-- Popup -->
       <div class="popup" id="popup">
         <img class="result" id="resultImg" src="" alt="Result" decoding="async" />
         <div class="action-button" id="actionButton"></div>
@@ -54,7 +57,7 @@
     </div>
   </div>
 
-  <!-- Audio (ensure these exist under ./assets/) -->
+  <!-- Audio -->
   <audio id="boomSound1" src="./assets/boom-sound1.mp3" preload="none"></audio>
   <audio id="boomSound2" src="./assets/boom-sound2.mp3" preload="none"></audio>
   <audio id="winSound1"  src="./assets/win-sound1.mp3"  preload="none"></audio>

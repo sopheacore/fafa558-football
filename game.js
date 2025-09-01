@@ -1,9 +1,9 @@
-// ===== Small helpers =====
+// ===== helpers =====
 const log = (...a)=>{ try{ console.log('[game]',...a); }catch(_){} };
-const $ = s => document.querySelector(s);
+const $  = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
 
-// ===== Elements =====
+// ===== elements =====
 const loading = $('#loading');
 const landing = $('#landing');
 const popup = $('#popup');
@@ -17,15 +17,16 @@ const win2  = $('#winSound2');
 const bgm   = $('#bgMusic');
 const players = $$('.player');
 
-// ===== Audio pools =====
+// ===== constants (MUST match CSS vars) =====
+const SPIN_MS   = 650;  // matches --spin-ms
+const IMPACT_MS = 280;  // matches --impact-ms
+
+// ===== audio =====
 function makePool(el, size=2){
   const src = el.currentSrc || el.src;
-  const items = Array.from({length:size}, ()=> { const a=new Audio(src); a.preload='none'; return a; });
+  const items = Array.from({length:size}, ()=>{ const a=new Audio(src); a.preload='none'; return a; });
   let i=0;
-  return {
-    play(){ const a=items[i++%items.length]; try{ a.currentTime=0; a.play(); }catch(e){ log('sfx play', e); } },
-    setVolume(v){ items.forEach(a=> a.volume=v); }
-  };
+  return { play(){ const a=items[i++%items.length]; try{ a.currentTime=0; a.play(); }catch(e){ log('sfx play',e); } } };
 }
 const sfx = {
   click:new Audio('./assets/button-click.mp3'),
@@ -40,12 +41,12 @@ function tapSfx(){   try{sfx.tap.currentTime=0;   sfx.tap.play();}catch{} }
 function playBoom(){ sfx.boomA.play(); sfx.boomB.play(); }
 function playWin(){  sfx.winA.play();  sfx.winB.play();  }
 
-// ===== Fast boot =====
+// ===== fast boot =====
 function showUI(){ loading.style.display='none'; landing.classList.remove('hidden'); }
 document.addEventListener('DOMContentLoaded', showUI);
 setTimeout(()=>{ if(landing.classList.contains('hidden')) showUI(); }, 1500);
 
-// ===== BGM =====
+// ===== bgm =====
 bgm.volume = 0;
 function fadeTo(target=0.35, ms=700){
   const start=bgm.volume, diff=target-start, t0=performance.now();
@@ -59,55 +60,48 @@ window.addEventListener('pointerdown', tryUnlock, {once:true, passive:true});
 window.addEventListener('keydown', tryUnlock, {once:true});
 document.addEventListener('visibilitychange', ()=>{ if(document.hidden){ try{bgm.pause();}catch{}} else if(bgm.paused){ startBgm(); } });
 
-// ===== Lazy confetti =====
+// ===== lazy confetti =====
 let confettiLoading=false;
 function withConfetti(run){
   if(window.confetti) return run();
-  if(confettiLoading){ const id=setInterval(()=>{ if(window.confetti){ clearInterval(id); run(); }}, 40); return; }
+  if(confettiLoading){ const id=setInterval(()=>{ if(window.confetti){ clearInterval(id); run(); }},40); return; }
   confettiLoading=true;
   const s=document.createElement('script');
   s.src='https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js';
   s.async=true; s.onload=run; document.head.appendChild(s);
 }
 
-// ===== Pixel / Meta =====
+// ===== pixel (meta) =====
 function trackPurchase(value=2.00,currency='USD'){
   try{ if(typeof fbq==='function') fbq('track','Purchase',{value,currency}); }catch(_){}
   try{ if(typeof fbq==='function') fbq('trackCustom','ClaimClick'); }catch(_){}
 }
 
-// ===== Per-pixel hit using the same GIF =====
+// ===== per-pixel hit using same GIF =====
 const alphaMap = new Map(); // el -> {canvas,ctx,w,h}
 function prepareAlpha(el){
   const src = el.dataset.img; if(!src) return;
   const img = new Image();
-  img.crossOrigin='anonymous'; // harmless same-origin; needed if CDN allows CORS
+  img.crossOrigin = 'anonymous'; // ok if same-origin; if CDN, allow CORS
   img.src = src;
-  img.onload = ()=>{ el._alphaImg=img; renderAlpha(el); };
-  img.onerror = ()=>{ log('alpha image failed', src); };
+  img.onload = ()=>{ el._alphaImg = img; renderAlpha(el); };
+  img.onerror = ()=>{ log('alpha load fail', src); };
 }
 function renderAlpha(el){
   const img = el._alphaImg; if(!img) return;
-  const r = el.getBoundingClientRect();
-  const w = Math.max(1, Math.round(r.width));
-  const h = Math.max(1, Math.round(r.height));
-  const cvs = document.createElement('canvas'); cvs.width=w; cvs.height=h;
-  const ctx = cvs.getContext('2d');
-  // match CSS background: contain; center-bottom
+  const r=el.getBoundingClientRect();
+  const w=Math.max(1,Math.round(r.width));
+  const h=Math.max(1,Math.round(r.height));
+  const cvs=document.createElement('canvas'); cvs.width=w; cvs.height=h;
+  const ctx=cvs.getContext('2d');
   const sx=w/img.naturalWidth, sy=h/img.naturalHeight, s=Math.min(sx,sy);
   const dw=Math.round(img.naturalWidth*s), dh=Math.round(img.naturalHeight*s);
-  const dx=Math.round((w-dw)/2), dy=h-dh;
-  try{
-    ctx.clearRect(0,0,w,h);
-    ctx.drawImage(img, dx, dy, dw, dh);
-    alphaMap.set(el,{canvas:cvs,ctx,w,h});
-  }catch(e){
-    // tainted canvas (no CORS) -> fallback to rectangular hit
-    alphaMap.delete(el);
-  }
+  const dx=Math.round((w-dw)/2), dy=h-dh; // center X, bottom Y
+  try{ ctx.clearRect(0,0,w,h); ctx.drawImage(img,dx,dy,dw,dh); alphaMap.set(el,{canvas:cvs,ctx,w,h}); }
+  catch(e){ alphaMap.delete(el); }
 }
 function isPixelHit(el, clientX, clientY){
-  const data=alphaMap.get(el); if(!data) return true;
+  const data=alphaMap.get(el); if(!data) return true; // fallback
   const r=el.getBoundingClientRect();
   const x=Math.floor(clientX-r.left), y=Math.floor(clientY-r.top);
   if(x<0||y<0||x>=data.w||y>=data.h) return false;
@@ -115,10 +109,10 @@ function isPixelHit(el, clientX, clientY){
 }
 let resizeT; window.addEventListener('resize', ()=>{ clearTimeout(resizeT); resizeT=setTimeout(()=>players.forEach(renderAlpha),120); });
 
-// ===== Round / Popup state =====
-let round = 1;                 // 1 = lose on first, 2 = win on second
-let phase = 'idle';            // 'idle' | 'spinning' | 'popup'
-let controller = null;         // AbortController for current round
+// ===== strict state machine with token guard =====
+let round = 1;              // 1 = lose first, 2 = win second
+let token = 0;              // increments each round start
+let state = 'idle';         // 'idle' | 'spinning' | 'popup'
 
 function enablePlayers(){ players.forEach(p=>{ p.classList.add('zoom'); p.style.pointerEvents='auto'; }); }
 function disablePlayers(){ players.forEach(p=>{ p.classList.remove('zoom'); p.style.pointerEvents='none'; }); }
@@ -129,133 +123,101 @@ function hardResetSprites(){
     p.style.transform='';
   });
 }
+function schedule(ms, myToken, fn){
+  const t=setTimeout(()=>{ if(myToken===token) fn(); }, ms);
+  return ()=> clearTimeout(t);
+}
 
-// ======= NEW: Auto-kill any stray LOSE popup during round 2 =======
-function killLosePopupIfRound2(){
-  if (round === 2 && /popup-lose/i.test(resultImg.src)) {
-    popup.classList.remove('show');
-    actionBtnCt.innerHTML = '';
+// Lose popup
+function showLose(myToken){
+  if (myToken !== token) return; // guard
+  resultImg.src = './assets/popup-lose.webp';
+  actionBtnCt.innerHTML = `<img id="try-again-btn" src="./assets/try-again-button.gif" alt="Try again">`;
+  popup.classList.add('show');
+
+  const btn = $('#try-again-btn');
+  if (btn){
+    btn.onclick = () => {
+      clickSfx();
+      popup.classList.remove('show');
+      // prepare next round
+      hardResetSprites();
+      round = 2;
+      state = 'idle';
+      enablePlayers();
+      players.forEach(renderAlpha);
+    };
   }
 }
-// Reactive watcher: if *anything* shows the popup-lose during round 2, hide it instantly.
-(function setupPopupAutoKiller(){
-  const obs = new MutationObserver(()=>{
-    if (popup.classList.contains('show')) {
-      killLosePopupIfRound2();
-    }
-  });
-  obs.observe(popup, { attributes:true, attributeFilter:['class'] });
-})();
 
-// ===== Async utilities =====
-function delay(ms, signal){
-  return new Promise((res, rej)=>{
-    const t=setTimeout(res, ms);
-    if(signal) signal.addEventListener('abort', ()=>{ clearTimeout(t); rej('aborted'); }, {once:true});
-  });
-}
-function waitAnim(el, name, signal){
-  return new Promise((res, rej)=>{
-    const onEnd=(e)=>{ if(e.animationName===name){ el.removeEventListener('animationend',onEnd); res(); } };
-    el.addEventListener('animationend', onEnd);
-    if(signal) signal.addEventListener('abort', ()=>{ el.removeEventListener('animationend',onEnd); rej('aborted'); }, {once:true});
-  });
-}
-
-// ===== Popup helpers =====
-function showLose(signal){
-  // If we've already advanced to round 2, immediately no-op & ensure hidden.
-  if (round !== 1){ killLosePopupIfRound2(); return Promise.resolve(); }
-  resultImg.src='./assets/popup-lose.webp';
-  actionBtnCt.innerHTML=`<img id="try-again-btn" src="./assets/try-again-button.gif" alt="Try again">`;
-  popup.classList.add('show');
-  // Also ensure auto-kill still applies if round flips mid-frame
-  killLosePopupIfRound2();
-
-  return new Promise((res, rej)=>{
-    const btn=$('#try-again-btn');
-    const onClick=()=>{ clickSfx(); popup.classList.remove('show'); res(); };
-    btn?.addEventListener('click', onClick, {once:true});
-    if(signal) signal.addEventListener('abort', ()=>{ btn?.removeEventListener('click', onClick); popup.classList.remove('show'); rej('aborted'); }, {once:true});
-  });
-}
-function showWin(signal){
-  resultImg.src='./assets/popup-win-2usd.webp';
-  actionBtnCt.innerHTML=`
+// Win popup
+function showWin(myToken){
+  if (myToken !== token) return; // guard
+  resultImg.src = './assets/popup-win-2usd.webp';
+  actionBtnCt.innerHTML = `
     <a id="claim-btn" href="https://t.me/FAFA558khwin" target="_blank" rel="noopener">
       <img src="./assets/claim-button.gif" alt="Claim">
     </a>`;
   popup.classList.add('show');
 
-  const btn=$('#claim-btn');
-  btn?.addEventListener('click', (ev)=>{
+  const cb = $('#claim-btn');
+  if (cb) cb.addEventListener('click', (ev)=>{
     ev.preventDefault();
     clickSfx();
     trackPurchase(2.00,'USD');
-    const url=btn.href; setTimeout(()=>window.open(url,'_blank','noopener'),300);
+    const url = cb.href;
+    setTimeout(()=> window.open(url,'_blank','noopener'), 300);
   }, {once:true});
 
-  // If any stale lose popup tries to appear, nuke it.
-  killLosePopupIfRound2();
-
-  // resolve immediately; we don't wait for claim to close
-  return Promise.resolve();
+  withConfetti(()=>{
+    window.confetti({ particleCount: 80, spread: 360, startVelocity: 45, ticks: 90, origin: { y: 0.5 } });
+    setTimeout(()=> window.confetti({ particleCount: 60, spread: 320, startVelocity: 35, ticks: 80, origin: { y: 0.4 } }), 900);
+  });
 }
 
-// ===== Round runner =====
-async function runRound(p){
-  controller?.abort();
-  controller = new AbortController();
-  const {signal} = controller;
-
-  // proactively remove any stray lose popup if we are already on round 2
-  killLosePopupIfRound2();
-
-  phase = 'spinning';
+// Core round (no animationend; deterministic timers + token guard)
+function runRound(p){
+  // begin new round
+  token++; const myToken = token;
+  state = 'spinning';
   disablePlayers();
 
+  // start spin (duration set in CSS variable, but we use the same ms)
   p.classList.add('spin3d');
-  await waitAnim(p, 'spinY360', signal).catch(()=>{});
-  p.classList.remove('spin3d');
 
-  if (round === 1){
-    // --- LOSE ---
-    p.style.backgroundImage = "url('./assets/sad.png')";
-    playBoom();
-    p.classList.add('impact','afterglow');
+  // after SPIN
+  schedule(SPIN_MS, myToken, ()=>{
+    // stop spin
+    p.classList.remove('spin3d');
 
-    await waitAnim(p, 'impactPop', signal).catch(()=>{});
-    phase = 'popup';
-    await showLose(signal).catch(()=>{});
+    if (round === 1){
+      // ---- LOSE ----
+      p.style.backgroundImage = "url('./assets/sad.png')";
+      playBoom();
+      p.classList.add('impact','afterglow');
 
-    p.classList.remove('afterglow');
-    hardResetSprites();
-    round = 2;                    // next click is WIN
-    phase = 'idle';
-    enablePlayers();
-    players.forEach(renderAlpha);
+      // after IMPACT, show lose
+      schedule(IMPACT_MS, myToken, ()=>{
+        state = 'popup';
+        showLose(myToken);
+      });
 
-  } else {
-    // --- WIN ---
-    p.style.backgroundImage = "url('./assets/star.gif')";
-    playWin();
-    p.classList.add('impact','afterglow');
+    } else {
+      // ---- WIN ----
+      p.style.backgroundImage = "url('./assets/star.gif')";
+      playWin();
+      p.classList.add('impact','afterglow');
 
-    await waitAnim(p, 'impactPop', signal).catch(()=>{});
-    phase = 'popup';
-    await showWin(signal).catch(()=>{});
-
-    withConfetti(()=>{
-      window.confetti({ particleCount: 80, spread: 360, startVelocity: 45, ticks: 90, origin: { y: 0.5 } });
-      setTimeout(()=> window.confetti({ particleCount: 60, spread: 320, startVelocity: 35, ticks: 80, origin: { y: 0.4 } }), 900);
-    });
-
-    // (optional) lock game after win, or reset if you prefer
-    // round = 1; hardResetSprites(); enablePlayers(); phase = 'idle';
-  }
+      // after IMPACT, show win
+      schedule(IMPACT_MS, myToken, ()=>{
+        state = 'popup';
+        showWin(myToken);
+      });
+    }
+  });
 }
 
-// ===== Init =====
+// Init
 document.addEventListener('DOMContentLoaded', ()=>{
   players.forEach(p=>{
     p.style.backgroundImage = `url('${p.dataset.img}')`;
@@ -265,24 +227,27 @@ document.addEventListener('DOMContentLoaded', ()=>{
   });
   enablePlayers();
   round = 1;
-  phase = 'idle';
+  state = 'idle';
 });
 
-// Eat taps on popup
+// Eat taps on popup area only when shown (CSS handles pointer-events)
 ['pointerdown','click','touchstart'].forEach(evt=>{
   popup.addEventListener(evt, e=> e.stopPropagation(), {passive:true});
 });
 
-// ===== Player interaction (pointerdown = mobile-fast) =====
+// Player interaction (pointerdown for mobile)
 players.forEach(p=>{
   p.addEventListener('pointerdown', (ev)=>{
+    if (state !== 'idle') return;
     if (!isPixelHit(p, ev.clientX, ev.clientY)) return;
-    if (phase !== 'idle') return;
+
     ev.preventDefault();
     tapSfx();
-    runRound(p).catch(err=> log('round aborted/err', err));
+
+    // lock all and run round
+    runRound(p);
   }, {passive:false});
 });
 
-// Keep alpha maps aligned after layout changes
+// keep alpha maps aligned on orientation change
 window.addEventListener('orientationchange', ()=> setTimeout(()=>players.forEach(renderAlpha), 250));

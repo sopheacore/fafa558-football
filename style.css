@@ -1,4 +1,12 @@
-:root{ --backdrop-blur:22px; --backdrop-dim:.6; }
+:root{
+  --backdrop-blur:22px;
+  --backdrop-dim:.6;
+
+  /* Keep these in sync with JS constants */
+  --spin-ms: 650ms;
+  --impact-ms: 280ms;
+}
+
 html,body{ margin:0; height:100%; background:#000; display:grid; place-items:center; overflow:hidden; }
 
 /* blurred backdrop */
@@ -10,7 +18,7 @@ html,body{ margin:0; height:100%; background:#000; display:grid; place-items:cen
   z-index:0;
 }
 
-/* stage (frame) */
+/* stage */
 .stage{
   position:relative; width:min(100vw,calc(100dvh*9/16)); aspect-ratio:9/16;
   overflow:hidden; z-index:1;
@@ -28,12 +36,9 @@ html,body{ margin:0; height:100%; background:#000; display:grid; place-items:cen
 /* title */
 .title{ position:absolute; top:19%; left:74%; transform:translateX(-50%); width:min(37%,420px); }
 
-/* players layout */
+/* layout */
 .players{ position:absolute; inset:0; z-index:2; overflow:visible; }
-.slot{
-  position:absolute; width:clamp(150px,36%,290px); aspect-ratio:1/1;
-  overflow:visible; /* allow sprite to grow outside slot */
-}
+.slot{ position:absolute; width:clamp(150px,36%,290px); aspect-ratio:1/1; overflow:visible; }
 .slot.ronaldo{ top:28%; left:8%; }
 .slot.messi  { top:28%; right:8%; }
 .slot.haaland{ top:48%; left:31%; }
@@ -44,21 +49,23 @@ html,body{ margin:0; height:100%; background:#000; display:grid; place-items:cen
 .player{
   position:absolute; inset:0; border:0;
   background: center bottom/contain no-repeat;
-  cursor:pointer; pointer-events:none; /* enabled by JS on start */
+  cursor:pointer; pointer-events:none; /* enabled by JS */
   transition:filter .28s ease;
   filter: drop-shadow(0 10px 28px rgba(0,0,0,.45));
   background-color:transparent;
   transform-style:preserve-3d; backface-visibility:hidden;
   transform-origin:center bottom;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* idle */
 .player.zoom { animation: zoom .5s infinite alternate; }
 @keyframes zoom { from{transform:translateZ(0) scale(1);} to{transform:translateZ(0) scale(1.08);} }
 
-/* click effects */
-.player.spin3d { animation: spinY360 0.65s ease-in-out forwards; }
-.player.impact { animation: impactPop 0.28s ease-out; }
+/* click effects (durations controlled by CSS vars) */
+.player.spin3d { animation: spinY360 var(--spin-ms) ease-in-out forwards; }
+.player.impact { animation: impactPop var(--impact-ms) ease-out; }
 .player.afterglow::after{
   content:""; position:absolute; left:50%; bottom:6%;
   width:60%; height:30%; transform:translateX(-50%);
@@ -86,7 +93,8 @@ html,body{ margin:0; height:100%; background:#000; display:grid; place-items:cen
 .popup{
   position:absolute; inset:0; background:rgba(0,0,0,.72);
   display:flex; flex-direction:column; align-items:center; justify-content:center;
-  opacity:0; transform:scale(.86); pointer-events:none; transition:.4s; z-index:10;
+  opacity:0; transform:scale(.86); transition:.25s; z-index:10;
+  pointer-events: none;
 }
 .popup.show{ opacity:1; transform:scale(1); pointer-events:auto; }
 .result{ width:min(92%,360px); margin-bottom:18px; }
@@ -105,13 +113,3 @@ html,body{ margin:0; height:100%; background:#000; display:grid; place-items:cen
 @media (prefers-reduced-motion: reduce){
   .player.zoom, .player.spin3d, .player.impact { animation: none !important; }
 }
-/* Faster taps on mobile + no tap highlight */
-.player { 
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-
-/* Overlay should eat taps only when shown */
-.popup { pointer-events: none; }
-.popup.show { pointer-events: auto; }
-
