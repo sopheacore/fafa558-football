@@ -19,7 +19,7 @@ function makePool(el, size=2){
   const src = el.currentSrc || el.src;
   const items = Array.from({length:size}, ()=> {
     const a = new Audio(src);
-    a.preload = 'none';
+    a.preload = 'none'; // don't fetch until first play
     return a;
   });
   let i = 0;
@@ -79,21 +79,22 @@ function trackPurchase(value = 2.00, currency = 'USD') {
   try { if (typeof fbq === 'function') fbq('trackCustom', 'ClaimClick'); } catch (_) {}
 }
 
-// ===== Mask-based per-pixel hit testing =====
+// ===== Per-pixel hit testing using the same GIF as the sprite =====
 const players = document.querySelectorAll('.player');
-const maskData = new Map(); // el -> { canvas, ctx, w, h, img }
+const alphaMap = new Map(); // el -> { canvas, ctx, w, h, img }
 
-function prepareMask(el){
-  const src = el.dataset.mask;
-  if (!src) return;  // no mask -> fall back to rectangle
+function prepareAlpha(el){
+  const src = el.dataset.img;
+  if (!src) return;
   const img = new Image();
+  img.crossOrigin = 'anonymous'; // safe if same-origin; harmless otherwise
   img.src = src;
-  img.onload = ()=>{ el._maskImg = img; renderMask(el); };
-  img.onerror = ()=>{ log('mask load failed', src); };
+  img.onload = ()=>{ el._alphaImg = img; renderAlpha(el); };
+  img.onerror = ()=>{ log('alpha image failed', src); };
 }
 
-function renderMask(el){
-  const img = el._maskImg;
+function renderAlpha(el){
+  const img = el._alphaImg;
   if (!img) return;
   const rect = el.getBoundingClientRect();
   const w = Math.max(1, Math.round(rect.width));
@@ -102,7 +103,7 @@ function renderMask(el){
   cvs.width = w; cvs.height = h;
   const ctx = cvs.getContext('2d');
 
-  // Simulate CSS background: contain; center-bottom
+  // Match CSS background-size: contain; background-position: center bottom;
   const sx = w / img.naturalWidth;
   const sy = h / img.naturalHeight;
   const s  = Math.min(sx, sy);
@@ -113,25 +114,25 @@ function renderMask(el){
 
   ctx.clearRect(0,0,w,h);
   ctx.drawImage(img, dx, dy, dw, dh);
-  maskData.set(el, { canvas: cvs, ctx, w, h });
+  alphaMap.set(el, { canvas: cvs, ctx, w, h });
 }
 
 function isPixelHit(el, clientX, clientY){
-  const data = maskData.get(el);
-  if (!data){ return true; } // no mask -> rectangular hit
+  const data = alphaMap.get(el);
+  if (!data){ return true; } // if not ready, allow hit (fallback)
   const rect = el.getBoundingClientRect();
   const x = Math.floor(clientX - rect.left);
   const y = Math.floor(clientY - rect.top);
   if (x < 0 || y < 0 || x >= data.w || y >= data.h) return false;
   const a = data.ctx.getImageData(x, y, 1, 1).data[3];
-  return a > 10; // transparency threshold
+  return a > 10; // only count non-transparent pixels
 }
 
-// Rebuild masks on resize
+// Rebuild alpha maps on resize (keeps alignment with responsive layout)
 let resizeT;
 window.addEventListener('resize', ()=>{
   clearTimeout(resizeT);
-  resizeT = setTimeout(()=> players.forEach(renderMask), 120);
+  resizeT = setTimeout(()=> players.forEach(renderAlpha), 120);
 });
 
 // ===== Game state (strict 2nd-click = win) =====
@@ -146,7 +147,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
     p.style.backgroundImage = `url('${p.dataset.img}')`;
     p.classList.add('zoom');
     p.style.pointerEvents='auto';
-    prepareMask(p);
+    prepareAlpha(p);
   });
   round = 1;
   isBusy = false;
@@ -191,7 +192,7 @@ function onSpinEndFactory(p){
           resetPlayers();
           round = 2; // next click is win
           players.forEach(pl=>{ pl.classList.add('zoom'); pl.style.pointerEvents='auto'; });
-          players.forEach(renderMask); // keep masks aligned after layout reset
+          players.forEach(renderAlpha); // keep alpha maps in sync after layout reset
         }, { once:true });
 
         isBusy = false;
@@ -236,7 +237,7 @@ function onSpinEndFactory(p){
 
 players.forEach(p=>{
   p.addEventListener('click', (ev)=>{
-    // Only accept clicks on the visible player pixels (if mask present)
+    // Only accept clicks on visible player pixels (using the GIF’s alpha)
     if (!isPixelHit(p, ev.clientX, ev.clientY)) return;
 
     if (isBusy) return;

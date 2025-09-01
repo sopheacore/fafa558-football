@@ -31,14 +31,14 @@ html,body{ margin:0; height:100%; background:#000; display:grid; place-items:cen
 /* players layout */
 .players{ position:absolute; inset:0; z-index:2; overflow:visible; }
 .slot{
-  position:absolute; width:clamp(180px,36%,290px); aspect-ratio:1/1;
+  position:absolute; width:clamp(150px,36%,290px); aspect-ratio:1/1;
   overflow:visible; /* allow sprite to grow outside slot */
 }
-.slot.ronaldo{ top:28%; left:5%; }
-.slot.messi  { top:28%; right:5%; }
+.slot.ronaldo{ top:28%; left:8%; }
+.slot.messi  { top:28%; right:8%; }
 .slot.haaland{ top:48%; left:31%; }
-.slot.neymar { bottom:10%; left:4%; }
-.slot.mbappe { bottom:10%; right:4%; }
+.slot.neymar { bottom:13%; left:9%; }
+.slot.mbappe { bottom:13%; right:9%; }
 
 /* sprite button */
 .player{
@@ -101,7 +101,7 @@ html,body{ margin:0; height:100%; background:#000; display:grid; place-items:cen
   .slot.neymar,.slot.mbappe{ bottom:10%; }
 }
 
-/* respect reduced motion */
+/* reduced motion */
 @media (prefers-reduced-motion: reduce){
   .player.zoom, .player.spin3d, .player.impact { animation: none !important; }
 }
